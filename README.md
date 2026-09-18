@@ -56,6 +56,245 @@ errors.py               사용자용 예외 정의
 
 보너스로 `MERGE <branch_name>`과 `DIFF <file1> <file2>`도 제공합니다. `MERGE`는 현재 HEAD와 대상 브랜치 HEAD를 부모로 갖는 2-parent 커밋을 만들며, `DIFF`는 LCS를 이용해 공통 줄(`  `), 삭제 줄(`- `), 추가 줄(`+ `)을 표시합니다.
 
+## 실행 예시
+
+아래 출력은 한 세션에서 명령을 순서대로 실제 실행한 결과입니다. 해시와 작성 시각은 실행할 때마다 달라집니다. 예시에서 만드는 커밋 그래프는 다음과 같습니다.
+
+```text
+Initial commit ── Add README ── Fix typo in README        (main)
+                       \
+                        Add login feature ── Add login tests   (feature)
+```
+
+### INIT, COMMIT, BRANCH, SWITCH
+
+```text
+mini-git> INIT "Alice Kim"
+Initialized repository.
+Current branch: main
+Current user: Alice Kim
+mini-git> COMMIT "Initial commit"
+[main e80c88d3a5] Initial commit
+mini-git> COMMIT "Add README"
+[main d56710deb3] Add README
+mini-git> BRANCH feature
+Created branch: feature
+mini-git> COMMIT "Fix typo in README"
+[main cc8ac15210] Fix typo in README
+mini-git> SWITCH feature
+Switched to branch: feature
+mini-git> COMMIT "Add login feature"
+[feature 23cece7454] Add login feature
+mini-git> COMMIT "Add login tests"
+[feature b7eafa1c53] Add login tests
+```
+
+`BRANCH`는 현재 HEAD(`Add README`)를 가리키는 브랜치를 만들기 때문에, 이후 `main`과 `feature`의 커밋은 `Add README`에서 갈라집니다.
+
+### LOG
+
+기본 `LOG`는 위상 정렬 순서라서 부모가 항상 자식보다 먼저 나옵니다. 각 브랜치의 HEAD 커밋에는 `[브랜치명]`이 붙습니다.
+
+```text
+mini-git> LOG
+commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
+Initial commit
+
+commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
+Add README
+
+commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
+Add login feature
+
+commit cc8ac15210 (Alice Kim, 2026-09-19 00:19:03) [main]
+Fix typo in README
+
+commit b7eafa1c53 (Alice Kim, 2026-09-19 00:19:05) [feature]
+Add login tests
+```
+
+`--sort-by=date`는 작성 시각 오름차순입니다. 기본 `LOG`와 달리 `Fix typo in README`(00:19:03)가 `Add login feature`(00:19:04)보다 먼저 나옵니다.
+
+```text
+mini-git> LOG --sort-by=date
+commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
+Initial commit
+
+commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
+Add README
+
+commit cc8ac15210 (Alice Kim, 2026-09-19 00:19:03) [main]
+Fix typo in README
+
+commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
+Add login feature
+
+commit b7eafa1c53 (Alice Kim, 2026-09-19 00:19:05) [feature]
+Add login tests
+```
+
+`--sort-by=author`는 작성자 이름 오름차순이고, 작성자가 같으면 작성 시각 순입니다. 이 예시는 작성자가 한 명이라 날짜 정렬과 결과가 같습니다.
+
+```text
+mini-git> LOG --sort-by=author
+commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
+Initial commit
+
+commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
+Add README
+
+commit cc8ac15210 (Alice Kim, 2026-09-19 00:19:03) [main]
+Fix typo in README
+
+commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
+Add login feature
+
+commit b7eafa1c53 (Alice Kim, 2026-09-19 00:19:05) [feature]
+Add login tests
+```
+
+### PATH
+
+`Fix typo in README`(main)와 `Add login tests`(feature)는 서로 조상 관계가 아니지만, `PATH`는 연결을 무방향으로 보기 때문에 공통 부모 `Add README`를 거쳐 가는 경로를 찾습니다. 같은 커밋을 두 번 주면 그 커밋 하나만 출력합니다.
+
+```text
+mini-git> PATH cc8ac15210 b7eafa1c53
+Path: cc8ac15210 -> d56710deb3 -> 23cece7454 -> b7eafa1c53
+mini-git> PATH e80c88d3a5 e80c88d3a5
+Path: e80c88d3a5
+```
+
+두 커밋이 이어져 있지 않으면 `No path`를 출력합니다.
+
+### ANCESTORS
+
+지정한 커밋 자신은 빼고, 부모 방향으로 닿는 모든 커밋을 부모 우선 순서로 출력합니다. 다른 브랜치의 `Fix typo in README`는 조상이 아니므로 나오지 않습니다.
+
+```text
+mini-git> ANCESTORS b7eafa1c53
+commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
+Initial commit
+
+commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
+Add README
+
+commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
+Add login feature
+mini-git> ANCESTORS e80c88d3a5
+No ancestors.
+```
+
+### SEARCH
+
+키워드는 대소문자를 구분하지 않습니다. 여러 단어를 따옴표로 묶으면 모든 단어를 포함한 커밋만 찾습니다.
+
+```text
+mini-git> SEARCH login
+Found 2 commits:
+
+- 23cece7454 (Alice Kim): Add login feature
+- b7eafa1c53 (Alice Kim): Add login tests
+mini-git> SEARCH "login tests"
+Found 1 commit:
+
+- b7eafa1c53 (Alice Kim): Add login tests
+mini-git> SEARCH --author="Alice Kim"
+Found 5 commits:
+
+- e80c88d3a5 (Alice Kim): Initial commit
+- d56710deb3 (Alice Kim): Add README
+- cc8ac15210 (Alice Kim): Fix typo in README
+- 23cece7454 (Alice Kim): Add login feature
+- b7eafa1c53 (Alice Kim): Add login tests
+mini-git> SEARCH nothing
+Found 0 commits.
+```
+
+### MERGE (보너스)
+
+현재 브랜치 HEAD와 대상 브랜치 HEAD를 부모로 갖는 병합 커밋을 만듭니다. 병합 커밋의 조상에는 두 브랜치의 커밋이 모두 포함됩니다.
+
+```text
+mini-git> SWITCH main
+Switched to branch: main
+mini-git> MERGE feature
+[main 1650900ccc] Merge branch 'feature'
+mini-git> ANCESTORS 1650900ccc
+commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
+Initial commit
+
+commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
+Add README
+
+commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
+Add login feature
+
+commit cc8ac15210 (Alice Kim, 2026-09-19 00:19:03)
+Fix typo in README
+
+commit b7eafa1c53 (Alice Kim, 2026-09-19 00:19:05) [feature]
+Add login tests
+mini-git> MERGE feature
+Already up to date.
+```
+
+대상 브랜치의 HEAD가 이미 현재 HEAD의 조상이면(이미 병합했으면) 새 커밋을 만들지 않고 `Already up to date.`를 출력합니다.
+
+### DIFF (보너스)
+
+`old.txt`와 `new.txt`가 다음과 같을 때의 결과입니다.
+
+```text
+old.txt          new.txt
+apple            apple
+banana           blueberry
+cherry           cherry
+                 date
+```
+
+```text
+mini-git> DIFF old.txt new.txt
+  apple
+- banana
++ blueberry
+  cherry
++ date
+```
+
+### 에러
+
+에러가 나도 REPL은 종료되지 않고 다음 명령을 기다립니다.
+
+```text
+mini-git> LOG
+Repository not initialized
+mini-git> COMMIT
+Invalid args
+mini-git> COMMIT "unclosed
+Invalid args
+mini-git> LOG --sort-by=size
+Invalid args
+mini-git> SWITCH dev
+Unknown branch: dev
+mini-git> BRANCH feature
+Branch already exists: feature
+mini-git> PATH abc123 e80c88d3a5
+Unknown commit: abc123
+mini-git> PUSH
+Unknown command: PUSH
+```
+
+`Repository not initialized`는 `INIT` 전에 다른 명령을 실행했을 때 나옵니다. 인자 개수가 맞지 않거나, 따옴표가 닫히지 않았거나, 지원하지 않는 옵션 값을 주면 `Invalid args`가 나옵니다.
+
+### 종료
+
+```text
+mini-git> quit
+Goodbye.
+```
+
+`Ctrl+D`나 `Ctrl+C`로도 종료할 수 있습니다.
+
 ## 핵심 설계
 
 ### 커밋 그래프
@@ -85,6 +324,18 @@ errors.py               사용자용 예외 정의
 
 `PATH`는 부모와 자식 연결을 모두 이웃으로 간주하고 BFS를 수행합니다. 시작점과 도착점 양쪽의 거리를 구한 다음, 최단 거리 조건을 유지하는 이웃 중 해시가 가장 작은 것을 매 단계 고릅니다. 따라서 여러 최단 경로 중 `hash1->hash2->...` 문자열이 사전순으로 가장 작은 경로를 선택합니다. 시간복잡도는 O(V + E)입니다.
 
+예를 들어 커밋 그래프가 다음과 같다고 하겠습니다.
+
+```text
+A ── B ── C   (main)
+      \
+       D ── E   (feature)
+```
+
+C와 E는 서로 조상 관계가 아니므로 부모 방향으로만 따라가면 만날 수 없습니다. `PATH`는 연결을 무방향으로 보기 때문에 C에서 부모 B로 올라간 뒤 자식 D, E로 내려가는 경로를 찾습니다.
+
+전체 실행 결과는 [실행 예시의 PATH](#path)를 참고하세요.
+
 `ANCESTORS`는 지정 커밋의 부모 방향으로 방문 집합을 유지하며 탐색하므로 merge로 같은 조상에 여러 번 닿아도 한 번만 처리합니다. 수집한 조상은 전체 위상 순서를 기준으로 출력하여 조상 집합 안에서도 부모가 자식보다 먼저 나옵니다.
 
 ### 역색인 검색
@@ -96,14 +347,3 @@ errors.py               사용자용 예외 정의
 - 전체 순회 검색: 매 요청마다 O(V), 메시지 비교 비용까지 필요
 
 검색 결과의 일관된 출력 순서를 만들기 위한 병합 정렬 비용은 별도입니다. 토큰 기준은 공백 분리와 소문자화이므로 구두점은 토큰의 일부로 취급됩니다. 작성자 값은 입력한 대소문자를 그대로 구분합니다.
-
-## 에러 예시
-
-```text
-Invalid args
-Unknown branch: feature
-Unknown commit: abc123
-Repository not initialized
-```
-
-따옴표가 닫히지 않았거나 인자 개수가 맞지 않아도 `Invalid args`를 출력하고 REPL은 계속 실행됩니다.
