@@ -2,11 +2,21 @@
 
 from __future__ import annotations
 
+import re
 import shlex
+
+try:
+    # 방향키 커서 이동과 명령 히스토리를 지원한다. (Windows 등에서는 없을 수 있음)
+    import readline  # noqa: F401
+except ImportError:
+    pass
 
 from errors import MiniGitError
 from file_diff import line_diff
 from repository import MiniGitRepository
+
+# ANSI 이스케이프 시퀀스(예: 방향키 "\x1b[A")와 그 밖의 제어 문자
+_CONTROL_SEQUENCE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]|\x1bO.|[\x00-\x08\x0b-\x1f\x7f]")
 
 
 class MiniGitCLI:
@@ -30,6 +40,7 @@ class MiniGitCLI:
     def execute(self, line: str) -> tuple[bool, str]:
         """한 줄을 실행하고 (REPL 계속 여부, 출력 문자열)을 반환한다."""
 
+        line = _CONTROL_SEQUENCE.sub("", line)
         try:
             parts = shlex.split(line)
         except ValueError:
