@@ -147,7 +147,9 @@ class MiniGitRepository:
         other_head = self.branches[branch_name]
         if current_head is None or other_head is None:
             raise MiniGitError("Cannot merge a branch without commits")
-        if current_head == other_head:
+        if current_head == other_head or other_head in self._ancestor_set(
+            current_head
+        ):
             return "Already up to date."
 
         message = f"Merge branch '{branch_name}'"
@@ -304,11 +306,9 @@ class MiniGitRepository:
         result = self.shortest_path(start_hash, end_hash)
         return "No path" if result is None else f"Path: {' -> '.join(result)}"
 
-    def ancestor_hashes(self, commit_hash: str) -> list[str]:
-        """자기 자신을 제외한 모든 조상을 부모 우선 순서로 반환한다."""
+    def _ancestor_set(self, commit_hash: str) -> set[str]:
+        """부모 방향으로 닿는 모든 커밋 해시를 모은다(자기 자신 제외)."""
 
-        self._require_initialized()
-        self._validate_commit(commit_hash)
         ancestors: set[str] = set()
         stack = list(self.commits[commit_hash].parents)
         while stack:
@@ -317,6 +317,14 @@ class MiniGitRepository:
                 continue
             ancestors.add(ancestor_hash)
             stack.extend(self.commits[ancestor_hash].parents)
+        return ancestors
+
+    def ancestor_hashes(self, commit_hash: str) -> list[str]:
+        """자기 자신을 제외한 모든 조상을 부모 우선 순서로 반환한다."""
+
+        self._require_initialized()
+        self._validate_commit(commit_hash)
+        ancestors = self._ancestor_set(commit_hash)
         return [item for item in self.topological_hashes() if item in ancestors]
 
     def ancestors(self, commit_hash: str) -> str:
