@@ -31,7 +31,6 @@ mini-git> quit
 main.py                 실행 진입점과 공개 API
 cli.py                  명령 해석과 REPL 입출력
 repository.py           커밋 그래프와 브랜치·검색 관리
-file_diff.py            LCS 기반 파일 비교
 sorting.py              안정 병합 정렬
 models.py               Commit 데이터 모델
 errors.py               사용자용 예외 정의
@@ -53,8 +52,6 @@ errors.py               사용자용 예외 정의
 | `SEARCH <keyword>` | 메시지 키워드 역색인으로 검색합니다. 여러 단어는 모든 단어를 포함한 커밋을 찾습니다. |
 | `SEARCH --author=<name>` | 작성자 역색인으로 검색합니다. |
 | `exit`, `quit` | 프로그램을 종료합니다. |
-
-보너스로 `MERGE <branch_name>`과 `DIFF <file1> <file2>`도 제공합니다. `MERGE`는 현재 HEAD와 대상 브랜치 HEAD를 부모로 갖는 2-parent 커밋을 만들며, `DIFF`는 LCS를 이용해 공통 줄(`  `), 삭제 줄(`- `), 추가 줄(`+ `)을 표시합니다.
 
 ## 실행 예시
 
@@ -210,57 +207,6 @@ mini-git> SEARCH nothing
 Found 0 commits.
 ```
 
-### MERGE (보너스)
-
-현재 브랜치 HEAD와 대상 브랜치 HEAD를 부모로 갖는 병합 커밋을 만듭니다. 병합 커밋의 조상에는 두 브랜치의 커밋이 모두 포함됩니다.
-
-```text
-mini-git> SWITCH main
-Switched to branch: main
-mini-git> MERGE feature
-[main 1650900ccc] Merge branch 'feature'
-mini-git> ANCESTORS 1650900ccc
-commit e80c88d3a5 (Alice Kim, 2026-09-19 00:19:01)
-Initial commit
-
-commit d56710deb3 (Alice Kim, 2026-09-19 00:19:02)
-Add README
-
-commit 23cece7454 (Alice Kim, 2026-09-19 00:19:04)
-Add login feature
-
-commit cc8ac15210 (Alice Kim, 2026-09-19 00:19:03)
-Fix typo in README
-
-commit b7eafa1c53 (Alice Kim, 2026-09-19 00:19:05) [feature]
-Add login tests
-mini-git> MERGE feature
-Already up to date.
-```
-
-대상 브랜치의 HEAD가 이미 현재 HEAD의 조상이면(이미 병합했으면) 새 커밋을 만들지 않고 `Already up to date.`를 출력합니다.
-
-### DIFF (보너스)
-
-`old.txt`와 `new.txt`가 다음과 같을 때의 결과입니다.
-
-```text
-old.txt          new.txt
-apple            apple
-banana           blueberry
-cherry           cherry
-                 date
-```
-
-```text
-mini-git> DIFF old.txt new.txt
-  apple
-- banana
-+ blueberry
-  cherry
-+ date
-```
-
 ### 에러
 
 에러가 나도 REPL은 종료되지 않고 다음 명령을 기다립니다.
@@ -303,7 +249,7 @@ Goodbye.
 
 커밋 해시는 세션 UUID, 증가 카운터, 작성자, 작성 시각, 메시지, 부모 해시를 조합해 SHA-1으로 만들며, 생성된 10자리 해시가 이미 존재하면 카운터를 증가시켜 다시 생성합니다. 따라서 세션 안에서 중복된 해시는 저장되지 않습니다.
 
-일반 Git과 같이 간선 방향을 `자식 -> 부모`로 보면 커밋 그래프는 방향성이 있고 순환이 없는 DAG입니다. 부모의 자식 목록도 별도로 유지하여 반대 방향 탐색이 필요한 경우 매번 전체 커밋을 훑지 않습니다.
+일반 Git과 같이 간선 방향을 `자식 -> 부모`로 보면 커밋 그래프는 방향성이 있고 순환이 없는 DAG입니다. 새 커밋은 이미 존재하는 HEAD만 부모로 삼으므로 미래 커밋을 가리키는 간선이나 사이클이 만들어지지 않습니다. 부모의 자식 목록도 별도로 유지하여 반대 방향 탐색이 필요한 경우 매번 전체 커밋을 훑지 않습니다.
 
 ### 부모 우선 LOG
 
@@ -336,7 +282,7 @@ C와 E는 서로 조상 관계가 아니므로 부모 방향으로만 따라가�
 
 전체 실행 결과는 [실행 예시의 PATH](#path)를 참고하세요.
 
-`ANCESTORS`는 지정 커밋의 부모 방향으로 방문 집합을 유지하며 탐색하므로 merge로 같은 조상에 여러 번 닿아도 한 번만 처리합니다. 수집한 조상은 전체 위상 순서를 기준으로 출력하여 조상 집합 안에서도 부모가 자식보다 먼저 나옵니다.
+`ANCESTORS`는 지정 커밋의 부모 방향으로 방문 집합을 유지하며 탐색하므로 같은 조상에 여러 번 닿아도 한 번만 처리합니다. 수집한 조상은 전체 위상 순서를 기준으로 출력하여 조상 집합 안에서도 부모가 자식보다 먼저 나옵니다.
 
 ### 역색인 검색
 

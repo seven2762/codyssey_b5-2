@@ -12,7 +12,6 @@ except ImportError:
     pass
 
 from errors import MiniGitError
-from file_diff import line_diff
 from repository import MiniGitRepository
 
 # ANSI 이스케이프 시퀀스(예: 방향키 "\x1b[A")와 그 밖의 제어 문자
@@ -98,14 +97,6 @@ class MiniGitCLI:
                     return True, self.repository.search_author(author)
                 self._invalid_args(query.startswith("--"))
                 return True, self.repository.search_keyword(query)
-
-            if command == "merge":
-                self._validate_arguments(arguments, 1)
-                return True, self.repository.merge(arguments[0])
-
-            if command == "diff":
-                self._validate_arguments(arguments, 2)
-                return True, line_diff(arguments[0], arguments[1])
 
             return True, f"Unknown command: {parts[0]}"
         except MiniGitError as error:

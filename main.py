@@ -2,7 +2,6 @@
 
 from cli import MiniGitCLI, run_cli
 from errors import MiniGitError
-from file_diff import line_diff
 from models import Commit
 from repository import MiniGitRepository
 from sorting import merge_sort
@@ -12,7 +11,6 @@ __all__ = [
     "MiniGitCLI",
     "MiniGitError",
     "MiniGitRepository",
-    "line_diff",
     "main",
     "merge_sort",
 ]

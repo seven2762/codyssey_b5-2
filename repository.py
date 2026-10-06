@@ -132,30 +132,6 @@ class MiniGitRepository:
         new_commit = self._create_commit(message, parents)
         return f"[{self.current_branch} {new_commit.hash}] {message}"
 
-    def merge(self, branch_name: str) -> str:
-        """부모가 두 개인 병합 커밋을 만든다(선택 보너스 명령)."""
-
-        self._require_initialized()
-        if not branch_name.strip():
-            raise MiniGitError("Invalid args")
-        if branch_name not in self.branches:
-            raise MiniGitError(f"Unknown branch: {branch_name}")
-        if branch_name == self.current_branch:
-            raise MiniGitError("Cannot merge the current branch")
-
-        current_head = self.branches[self.current_branch]
-        other_head = self.branches[branch_name]
-        if current_head is None or other_head is None:
-            raise MiniGitError("Cannot merge a branch without commits")
-        if current_head == other_head or other_head in self._ancestor_set(
-            current_head
-        ):
-            return "Already up to date."
-
-        message = f"Merge branch '{branch_name}'"
-        new_commit = self._create_commit(message, (current_head, other_head))
-        return f"[{self.current_branch} {new_commit.hash}] {message}"
-
     def _ordered_children(self, commit_hash: str) -> list[str]:
         return merge_sort(
             self.children.get(commit_hash, set()), key=lambda value: value
