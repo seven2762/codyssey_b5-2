@@ -36,10 +36,25 @@ class MiniGitCLI:
         ):
             raise MiniGitError("Invalid args")
 
+    @staticmethod
+    def _option_value(arguments: list[str], name: str) -> str:
+        """긴 옵션의 --name=value와 --name value 형식을 해석한다."""
+
+        if len(arguments) == 1 and arguments[0].lower().startswith(name + "="):
+            value = arguments[0].split("=", 1)[1]
+        elif len(arguments) == 2 and arguments[0].lower() == name:
+            value = arguments[1]
+        else:
+            raise MiniGitError("Invalid args")
+        if not value.strip():
+            raise MiniGitError("Invalid args")
+        return value
+
     def execute(self, line: str) -> tuple[bool, str]:
         """한 줄을 실행하고 (REPL 계속 여부, 출력 문자열)을 반환한다."""
 
-        line = _CONTROL_SEQUENCE.sub("", line)
+        if _CONTROL_SEQUENCE.search(line):
+            return True, "Invalid args"
         try:
             parts = shlex.split(line)
         except ValueError:
@@ -49,6 +64,9 @@ class MiniGitCLI:
 
         command = parts[0].lower()
         arguments = parts[1:]
+        positional_only = bool(arguments and arguments[0] == "--")
+        if positional_only:
+            arguments = arguments[1:]
         try:
             if command in {"exit", "quit"}:
                 self._invalid_args(bool(arguments))
@@ -73,10 +91,8 @@ class MiniGitCLI:
             if command == "log":
                 if not arguments:
                     return True, self.repository.log()
-                self._invalid_args(len(arguments) != 1)
-                option = arguments[0]
-                self._invalid_args(not option.lower().startswith("--sort-by="))
-                sort_by = option.split("=", 1)[1].lower()
+                self._invalid_args(positional_only)
+                sort_by = self._option_value(arguments, "--sort-by").lower()
                 self._invalid_args(sort_by not in {"date", "author"})
                 return True, self.repository.log(sort_by)
 
@@ -89,13 +105,15 @@ class MiniGitCLI:
                 return True, self.repository.ancestors(arguments[0])
 
             if command == "search":
+                if not positional_only and arguments and (
+                    arguments[0].lower() == "--author"
+                    or arguments[0].lower().startswith("--author=")
+                ):
+                    author = self._option_value(arguments, "--author")
+                    return True, self.repository.search_author(author)
                 self._validate_arguments(arguments, 1)
                 query = arguments[0]
-                if query.lower().startswith("--author="):
-                    author = query.split("=", 1)[1]
-                    self._invalid_args(not author.strip())
-                    return True, self.repository.search_author(author)
-                self._invalid_args(query.startswith("--"))
+                self._invalid_args(not positional_only and query.startswith("--"))
                 return True, self.repository.search_keyword(query)
 
             return True, f"Unknown command: {parts[0]}"
@@ -113,26 +131,26 @@ def _print_safely(message: str) -> bool:
     return True
 
 
-def run_cli(cli: MiniGitCLI | None = None) -> None:
-    """전달받은 CLI로 읽기-평가-출력 반복문을 실행한다."""
+def run_cli(cli: MiniGitCLI | None = None) -> int:
+    """REPL을 실행하고 정상 종료 0, 입출력 오류 1, 사용자 중단 130을 반환한다."""
 
     cli = cli or MiniGitCLI()
-    while True:
-        try:
-            line = input("mini-git> ")
-        except (EOFError, KeyboardInterrupt):
-            _print_safely("\nGoodbye.")
-            break
-        except (OSError, UnicodeError, ValueError) as error:
-            _print_safely(f"\nInput error: {error}")
-            break
+    try:
+        while True:
+            try:
+                line = input("mini-git> ")
+            except EOFError:
+                return 0 if _print_safely("\nGoodbye.") else 1
+            except (OSError, UnicodeError, ValueError) as error:
+                _print_safely(f"\nInput error: {error}")
+                return 1
 
-        try:
             should_continue, output = cli.execute(line)
-        except KeyboardInterrupt:
-            _print_safely("\nGoodbye.")
-            break
-        if output and not _print_safely(output):
-            break
-        if not should_continue:
-            break
+            if output and not _print_safely(output):
+                return 1
+            if not should_continue:
+                return 0
+    except KeyboardInterrupt:
+        # 입력, 명령 실행, 출력 중의 Ctrl+C를 한 곳에서 처리한다.
+        _print_safely("\nGoodbye.")
+        return 130

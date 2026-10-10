@@ -13,6 +13,12 @@ python main.py
 
 프롬프트가 나타나면 명령을 입력합니다. 명령어 이름과 옵션 이름은 대소문자를 구분하지 않습니다. 공백을 포함한 인자는 따옴표로 감싸야 합니다.
 
+입력은 셸 스타일의 작은따옴표·큰따옴표·역슬래시 인용 규칙으로 해석합니다. 인접한 인용 구간은 하나의 인자로 합쳐지고, 다른 종류의 따옴표 안에 있는 따옴표는 실제 문자로 보존합니다. 닫히지 않은 따옴표나 필수 인자의 빈 값은 `Invalid args`입니다. 변수 치환이나 명령 실행은 하지 않습니다.
+
+브랜치 이름은 요청에 따라 앞뒤 공백을 제거한 뒤 [Git 브랜치 이름 규칙](https://git-scm.com/docs/git-check-ref-format)으로 검증합니다. `BRANCH " feature "`는 `feature`를 만들고, `SWITCH " feature "`는 해당 브랜치로 전환합니다. 빈 이름, ASCII 공백·제어 문자, `..`, `@{`, `.lock`으로 끝나는 구성 요소 등은 거부하며, `feature/login` 같은 이름은 허용합니다. 앞뒤 공백을 제거하는 동작은 이 프로그램의 편의 처리입니다.
+
+값을 받는 옵션은 `--sort-by=date`와 `--sort-by date`, `--author="Alice Kim"`과 `--author "Alice Kim"` 두 형태를 지원합니다. 명령 바로 뒤의 `--`는 옵션 해석을 끝냅니다. 예를 들어 `SEARCH -- --author=Alice`는 `--author=Alice`라는 메시지 키워드를 검색합니다.
+
 ```text
 mini-git> INIT "Alice Kim"
 mini-git> COMMIT "Initial commit"
@@ -239,13 +245,21 @@ mini-git> quit
 Goodbye.
 ```
 
-`Ctrl+D`나 `Ctrl+C`로도 종료할 수 있습니다.
+`Ctrl+D`(EOF)나 `Ctrl+C`로도 종료할 수 있습니다. Windows에서는 `Ctrl+Z` 후 Enter로 EOF를 입력합니다.
+
+| 종료 상황 | 종료 코드 | 의미 |
+|---|---|---|
+| `exit`, `quit`, EOF | `0` | 명시적인 종료 명령 또는 입력 종료에 따른 정상 종료 |
+| `Ctrl+C` (`KeyboardInterrupt`) | `130` | 사용자가 실행을 중단함 |
+| 입력 또는 출력 오류 | `1` | 입출력 실패로 실행을 계속할 수 없음 |
+
+EOF는 더 읽을 입력이 없다는 뜻이고, `KeyboardInterrupt`는 사용자가 실행을 중단했다는 뜻이므로 종료 코드를 구분합니다. `130`은 SIGINT(신호 번호 2)에 대해 일반적으로 사용하는 `128 + 2` 값입니다. 입력, 명령 실행, 출력 중 발생하는 `KeyboardInterrupt`를 REPL 전체를 감싸는 한 곳에서 처리합니다. 반환한 코드는 실행 진입점의 `SystemExit`를 통해 실제 프로세스 종료 코드로 전달합니다.
 
 ## 핵심 설계
 
 ### 커밋 그래프
 
-각 `Commit`은 `hash`, `message`, `author`, `timestamp`, `parents`를 가집니다. 저장소는 `dict[hash, Commit]` 형태라 해시로 평균 O(1)에 커밋을 찾습니다. 새 커밋은 이미 존재하는 HEAD만 부모로 삼으므로 미래 커밋을 가리키는 간선이 생기지 않아 사이클이 만들어지지 않습니다. merge도 이미 존재하는 두 HEAD만 부모로 사용하므로 같은 성질을 유지합니다.
+각 `Commit`은 `hash`, `message`, `author`, `timestamp`, `parents`를 가집니다. 저장소는 `dict[hash, Commit]` 형태라 해시로 평균 O(1)에 커밋을 찾습니다. 첫 커밋은 부모가 없고, 이후 커밋은 현재 브랜치의 HEAD 하나만 부모로 사용합니다.
 
 커밋 해시는 세션 UUID, 증가 카운터, 작성자, 작성 시각, 메시지, 부모 해시를 조합해 SHA-1으로 만들며, 생성된 10자리 해시가 이미 존재하면 카운터를 증가시켜 다시 생성합니다. 따라서 세션 안에서 중복된 해시는 저장되지 않습니다.
 

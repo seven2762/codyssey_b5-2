@@ -16,11 +16,11 @@ __all__ = [
 ]
 
 
-def main() -> None:
-    """Mini Git의 읽기-평가-출력 반복문을 실행한다."""
+def main() -> int:
+    """Mini Git을 실행하고 프로세스 종료 코드를 반환한다."""
 
-    run_cli(MiniGitCLI())
+    return run_cli(MiniGitCLI())
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

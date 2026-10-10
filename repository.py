@@ -99,12 +99,36 @@ class MiniGitRepository:
         self._index_commit(commit)
         return commit
 
+    @staticmethod
+    def _normalize_branch_name(branch_name: str) -> str:
+        """이름 양끝을 trim한 뒤 Git 브랜치 이름 규칙으로 검증한다."""
+
+        branch_name = branch_name.strip()
+        components = branch_name.split("/")
+        if (
+            not branch_name
+            or branch_name == "HEAD"
+            or branch_name.startswith("-")
+            or branch_name.endswith(".")
+            or ".." in branch_name
+            or "@{" in branch_name
+            or any(
+                not component or component.startswith(".") or component.endswith(".lock")
+                for component in components
+            )
+            or any(
+                ord(character) <= 32 or ord(character) == 127 or character in "~^:?*[\\"
+                for character in branch_name
+            )
+        ):
+            raise MiniGitError("Invalid args")
+        return branch_name
+
     def create_branch(self, branch_name: str) -> str:
         """현재 브랜치의 HEAD를 가리키는 새 브랜치를 만든다."""
 
         self._require_initialized()
-        if not branch_name.strip():
-            raise MiniGitError("Invalid args")
+        branch_name = self._normalize_branch_name(branch_name)
         if branch_name in self.branches:
             raise MiniGitError(f"Branch already exists: {branch_name}")
         self.branches[branch_name] = self.branches[self.current_branch]
@@ -114,8 +138,7 @@ class MiniGitRepository:
         """심볼릭 HEAD를 이미 존재하는 브랜치로 옮긴다."""
 
         self._require_initialized()
-        if not branch_name.strip():
-            raise MiniGitError("Invalid args")
+        branch_name = self._normalize_branch_name(branch_name)
         if branch_name not in self.branches:
             raise MiniGitError(f"Unknown branch: {branch_name}")
         self.current_branch = branch_name
